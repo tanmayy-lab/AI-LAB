@@ -1,0 +1,118 @@
+import math
+
+# ==========================================================
+# Define a simple binary game tree
+# ==========================================================
+
+class Node:
+    def __init__(self, value=None, children=None):
+        self.value = value          # Leaf value (for terminal nodes)
+        self.children = children or []  # List of child nodes
+
+
+# ==========================================================
+# Alpha–Beta Pruning Algorithm
+# ==========================================================
+
+def alpha_beta(node, depth, alpha, beta, maximizing_player):
+    """
+    Alpha–Beta pruning on an explicit tree structure.
+    """
+    # Base case: leaf node
+    if depth == 0 or not node.children:
+        return node.value
+
+    if maximizing_player:
+        max_eval = -math.inf
+        for child in node.children:
+            eval = alpha_beta(child, depth - 1, alpha, beta, False)
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break  # prune
+        return max_eval
+    else:
+        min_eval = math.inf
+        for child in node.children:
+            eval = alpha_beta(child, depth - 1, alpha, beta, True)
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break  # prune
+        return min_eval
+
+
+# ==========================================================
+# Trace version (to see pruning steps)
+# ==========================================================
+
+def alpha_beta_trace(node, depth, alpha, beta, maximizing_player, indent=""):
+    if depth == 0 or not node.children:
+        print(f"{indent}Leaf → value = {node.value}")
+        return node.value
+
+    if maximizing_player:
+        print(f"{indent}MAX node, α={alpha}, β={beta}")
+        value = -math.inf
+        for i, child in enumerate(node.children):
+            print(f"{indent}→ Explore MIN child {i}")
+            eval = alpha_beta_trace(child, depth - 1, alpha, beta, False, indent + "  ")
+            value = max(value, eval)
+            alpha = max(alpha, value)
+            print(f"{indent}MAX updated: value={value}, α={alpha}, β={beta}")
+            if beta <= alpha:
+                print(f"{indent}PRUNE remaining children (β ≤ α)\n")
+                break
+        return value
+    else:
+        print(f"{indent}MIN node, α={alpha}, β={beta}")
+        value = math.inf
+        for i, child in enumerate(node.children):
+            print(f"{indent}→ Explore MAX child {i}")
+            eval = alpha_beta_trace(child, depth - 1, alpha, beta, True, indent + "  ")
+            value = min(value, eval)
+            beta = min(beta, value)
+            print(f"{indent}MIN updated: value={value}, α={alpha}, β={beta}")
+            if beta <= alpha:
+                print(f"{indent}PRUNE remaining children (β ≤ α)\n")
+                break
+        return value
+
+
+# ==========================================================
+# Example Tree (Depth 3, 8 leaf nodes)
+# ==========================================================
+
+# Leaves
+leaf_nodes = [Node(3), Node(5), Node(6), Node(9), Node(1), Node(2), Node(0), Node(-1)]
+
+# Level 2 (MIN nodes)
+level2 = [
+    Node(children=[leaf_nodes[0], leaf_nodes[1]]),
+    Node(children=[leaf_nodes[2], leaf_nodes[3]]),
+    Node(children=[leaf_nodes[4], leaf_nodes[5]]),
+    Node(children=[leaf_nodes[6], leaf_nodes[7]])
+]
+
+# Level 1 (MAX nodes)
+level1 = [
+    Node(children=[level2[0], level2[1]]),
+    Node(children=[level2[2], level2[3]])
+]
+
+# Root (MIN node)
+root = Node(children=[level1[0], level1[1]])
+
+
+# ==========================================================
+# Run the algorithm
+# ==========================================================
+
+if __name__ == "__main__":
+    print("========== Alpha–Beta Pruning (No Trace) ==========")
+    optimal_value = alpha_beta(root, 3, -math.inf, math.inf, True)
+    print(f"\n✅ Optimal value found: {optimal_value}")
+
+    print("\n========== Alpha–Beta Pruning (Trace) ==========\n")
+    traced_value = alpha_beta_trace(root, 3, -math.inf, math.inf, True)
+    print(f"\n✅ Final optimal value (trace) = {traced_value}")

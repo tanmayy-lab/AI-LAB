@@ -1,0 +1,126 @@
+from copy import deepcopy
+
+# ----------------------------
+# Basic utilities
+# ----------------------------
+
+def is_variable(x):
+    return isinstance(x, str) and x[0].islower()
+
+def substitute(subst, expr):
+    """Substitute variables in expr according to subst mapping."""
+    if isinstance(expr, str):
+        return subst.get(expr, expr)
+    return (expr[0],) + tuple(substitute(subst, a) for a in expr[1:])
+
+def unify(x, y, subst=None):
+    """Unify two literals, returning substitution if possible."""
+    if subst is None:
+        subst = {}
+    if x == y:
+        return subst
+    if is_variable(x):
+        return unify_var(x, y, subst)
+    if is_variable(y):
+        return unify_var(y, x, subst)
+    if isinstance(x, tuple) and isinstance(y, tuple) and x[0] == y[0] and len(x) == len(y):
+        for a, b in zip(x[1:], y[1:]):
+            subst = unify(substitute(subst, a), substitute(subst, b), subst)
+            if subst is None:
+                return None
+        return subst
+    return None
+
+def unify_var(var, x, subst):
+    if var in subst:
+        return unify(subst[var], x, subst)
+    elif x in subst:
+        return unify(var, subst[x], subst)
+    elif occurs_check(var, x, subst):
+        return None
+    else:
+        subst[var] = x
+        return subst
+
+def occurs_check(var, x, subst):
+    """Prevent circular substitutions."""
+    if var == x:
+        return True
+    elif isinstance(x, tuple):
+        return any(occurs_check(var, arg, subst) for arg in x[1:])
+    elif is_variable(x) and x in subst:
+        return occurs_check(var, subst[x], subst)
+    return False
+
+def negate(lit):
+    return ('~' + lit[0][1:],) + lit[1:] if lit[0].startswith('~') else ('~' + lit[0],) + lit[1:]
+
+# ----------------------------
+# Resolution
+# ----------------------------
+
+def resolve(ci, cj):
+    """Return resolvents between two clauses."""
+    resolvents = []
+    for li in ci:
+        for lj in cj:
+            if li[0].startswith('~') != lj[0].startswith('~') and li[0].lstrip('~') == lj[0].lstrip('~'):
+                subst = unify(li, negate(lj))
+                if subst is not None:
+                    new_clause = set(substitute(subst, l) for l in ci.union(cj) if l != li and l != lj)
+                    resolvents.append(frozenset(new_clause))
+    return resolvents
+
+def fol_resolution(kb, query):
+    clauses = deepcopy(kb)
+    clauses.append({negate(query)})
+    print("Initial clauses:")
+    for c in clauses:
+        print("  ", c)
+    print("\nResolving...\n")
+
+    new = set()
+    while True:
+        pairs = [(clauses[i], clauses[j]) for i in range(len(clauses)) for j in range(i + 1, len(clauses))]
+        for (ci, cj) in pairs:
+            for resolvent in resolve(ci, cj):
+                if not resolvent:
+                    print("Derived empty clause -> contradiction found ✅")
+                    return True
+                new.add(resolvent)
+        if new.issubset(set(map(frozenset, clauses))):
+            print("No new clauses can be added ❌")
+            return False
+        for c in new:
+            if c not in clauses:
+                clauses.append(set(c))
+                print("New clause:", c)
+
+# ----------------------------
+# Example KB (CNF)
+# ----------------------------
+
+KB = [
+    {('~Food', 'x'), ('Likes', 'John', 'x')},
+    {('Food', 'Apple')},
+    {('Food', 'Vegetable')},
+    {('~Eats', 'x', 'y'), ('Killed', 'x'), ('Food', 'y')},
+    {('Eats', 'Anil', 'Peanut')},
+    {('Alive', 'Anil')},
+    {('~Eats', 'Anil', 'y'), ('Eats', 'Harry', 'y')},
+    {('~Alive', 'x'), ('~Killed', 'x')},
+    {('Killed', 'x'), ('Alive', 'x')}
+]
+
+query = ('Likes', 'John', 'Peanut')
+
+# ----------------------------
+# Run Resolution
+# ----------------------------
+
+proved = fol_resolution(KB, query)
+
+if proved:
+    print("\n✅ Proven: John likes peanuts.")
+else:
+    print("\n❌ Could not prove John likes peanuts.")
